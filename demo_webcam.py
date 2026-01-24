@@ -6,14 +6,14 @@ MODEL_PATH = 'models/best.pt'  # Đường dẫn đến file model
 CONFIDENCE_THRESHOLD = 0.5     # Độ tin cậy tối thiểu (0.5 = 50%)
 
 EMOTION_MAP = {
-    'anger': 'Gian Du',
-    'content': 'Man Nguyen',
-    'disgust': 'Ghe Tom',
-    'fear': 'So Hai',
-    'happy': 'Hanh Phuc',
-    'neutral': 'Binh Thuong',
-    'sad': 'Buon',
-    'surprise': 'Ngac Nhien'
+    'anger': 'Giận dữ',
+    'content': 'Mãn nguyện',
+    'disgust': 'Ghê tởm',
+    'fear': 'Sợ hãi',
+    'happy': 'Hạnh phúc',
+    'neutral': 'Bình thường',
+    'sad': 'Buồn bã',
+    'surprise': 'Ngạc nhiên'
 }
 
 # Màu sắc cho từng cảm xúc (BGR format)

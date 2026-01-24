@@ -1,29 +1,14 @@
-# --- .gitignore ---
-
-# 1. Bỏ qua thư mục ảo (nếu có)
 venv/
 .env
-
-# 2. Bỏ qua Cache (file rác của Python)
 __pycache__/
 *.pyc
-
-# 3. QUAN TRỌNG: Bỏ qua Dataset (Ảnh quá nặng, Github không cho up)
-# Chúng ta chỉ up code, không up dữ liệu
 dataset/
 train/
 valid/
 test/
-
-# 4. Bỏ qua Model quá nặng (trên 100MB)
-# Chỉ nên up model nhẹ (như yolov8n.pt), còn model train xong nên lưu Google Drive
 *.pt
 *.pth
 *.onnx
-
-# 5. Bỏ qua file cấu hình IDE
 .vscode/
 .idea/
-
-# 6. Bỏ qua kết quả train (runs/detect/...) nếu không muốn rác repo
 runs/
