@@ -6,8 +6,6 @@ dataset/
 train/
 valid/
 test/
-*.pt
-*.pth
 *.onnx
 .vscode/
 .idea/

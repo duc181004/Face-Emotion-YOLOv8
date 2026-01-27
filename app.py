@@ -45,7 +45,7 @@ with tab1:
         if st.button('🔍 Phân tích Cảm xúc ngay'):
             with st.spinner('Đang phân tích...'):
                 # Dự đoán
-                results = model.predict(image, conf=0.20, iou=0.5, imgsz=1280, augment=True, agnostic_nms=True)
+                results = model.predict(image, conf=0.20, iou=0.5, imgsz=1280, agnostic_nms=True, augment=True)
                 
                 # Vẽ kết quả lên ảnh
                 # results[0].plot() trả về mảng numpy (BGR), cần chuyển sang RGB để hiển thị đúng màu
@@ -77,7 +77,7 @@ with tab2:
         image = Image.open(img_file_buffer)
         
         # Dự đoán
-        results = model.predict(image, conf=0.20, iou=0.5, imgsz=1280, augment=True, agnostic_nms=True)
+        results = model.predict(image, conf=0.20, iou=0.5, imgsz=1280, agnostic_nms=True, augment=True)
         res_plotted = results[0].plot()[:, :, ::-1]
         
         st.image(res_plotted, caption='Kết quả từ Webcam', width="stretch")
