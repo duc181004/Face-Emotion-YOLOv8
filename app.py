@@ -1,13 +1,11 @@
 import streamlit as st
 import cv2
 import numpy as np
-from PIL import Image
 from ultralytics import YOLO
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
-from PIL import ImageDraw, ImageFont
-import numpy as np
+from PIL import ImageDraw, ImageFont, Image
 
 def draw_text_vietnamese(img_cv, text, pos, color, font_size=20):
     # Chuyển ảnh OpenCV (Numpy) sang PIL
