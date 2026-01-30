@@ -1,83 +1,151 @@
 import streamlit as st
-from ultralytics import YOLO
+import cv2
+import numpy as np
 from PIL import Image
+from ultralytics import YOLO
+import torch
+import torch.nn as nn
+from torchvision import models, transforms
+from PIL import ImageDraw, ImageFont
 import numpy as np
 
-MODEL_PATH = 'models/best.pt' 
+def draw_text_vietnamese(img_cv, text, pos, color, font_size=20):
+    # Chuyển ảnh OpenCV (Numpy) sang PIL
+    img_pil = Image.fromarray(cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(img_pil)
+    
+    # 2. Load font chữ
+    try:
+        font = ImageFont.truetype("arial.ttf", font_size)
+    except IOError:
+        try:
+            font = ImageFont.truetype("DejaVuSans.ttf", font_size)
+        except:
+            font = ImageFont.load_default()
+
+    # Vẽ chữ
+    draw.text(pos, text, font=font, fill=color)
+    
+    # Chuyển ngược lại thành OpenCV (BGR) để các hàm khác xử lý tiếp
+    return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+
+YOLO_PATH = 'models/best.pt'
+RESNET_PATH = 'models/resnet50_emotion_finetuned.pth'
+
+CLASS_NAMES = ['anger', 'content', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
 
 EMOTION_MAP = {
-    'anger': 'Giận dữ',
-    'content': 'Mãn nguyện',
-    'disgust': 'Ghê tởm',
-    'fear': 'Sợ hãi',
-    'happy': 'Hạnh phúc',
-    'neutral': 'Bình thường',
-    'sad': 'Buồn bã',
-    'surprise': 'Ngạc nhiên'
+    'anger': 'Giận dữ', 'content': 'Mãn nguyện', 'disgust': 'Ghê tởm',
+    'fear': 'Sợ hãi', 'happy': 'Hạnh phúc', 'neutral': 'Bình thường',
+    'sad': 'Buồn bã', 'surprise': 'Ngạc nhiên'
 }
 
 @st.cache_resource
-def load_model():
-    return YOLO(MODEL_PATH)
+def load_yolo():
+    return YOLO(YOLO_PATH)
 
-try:
-    model = load_model()
-except Exception as e:
-    st.error(f"❌ Không tìm thấy file model tại: {MODEL_PATH}")
-    st.stop()
-
-st.title("😊 Hệ thống Nhận diện Cảm xúc YOLOv8")
-st.write("Đồ án - Sinh viên: Trần Xuân Đức")
-
-tab1, tab2 = st.tabs(["🖼️ Nhận diện qua Ảnh", "📷 Nhận diện qua Webcam"])
-
-# --- TAB 1: UPLOAD ẢNH ---
-with tab1:
-    st.header("Tải ảnh lên để nhận diện")
-    uploaded_file = st.file_uploader("Chọn một bức ảnh...", type=['jpg', 'jpeg', 'png'])
-
-    if uploaded_file is not None:
-        # Hiển thị ảnh gốc
-        image = Image.open(uploaded_file)
-        st.image(image, caption='Ảnh đã tải lên', width="stretch")
-        
-        # Nút bấm xử lý
-        if st.button('🔍 Phân tích Cảm xúc ngay'):
-            with st.spinner('Đang phân tích...'):
-                # Dự đoán
-                results = model.predict(image, conf=0.20, iou=0.5, imgsz=1280, agnostic_nms=True, augment=True)
-                
-                # Vẽ kết quả lên ảnh
-                # results[0].plot() trả về mảng numpy (BGR), cần chuyển sang RGB để hiển thị đúng màu
-                res_plotted = results[0].plot()[:, :, ::-1]
-                
-                # Hiển thị kết quả
-                st.success("Xong!")
-                st.image(res_plotted, caption='Kết quả nhận diện', width="stretch")
-                
-                # In chi tiết ra text
-                st.subheader("Chi tiết:")
-                for box in results[0].boxes:
-                    cls_id = int(box.cls[0])
-                    label = model.names[cls_id]
-                    vn_label = EMOTION_MAP.get(label, label)
-                    conf = float(box.conf[0])
-                    st.write(f"- Phát hiện: **{vn_label}** (Độ tin cậy: {conf:.1%})")
-
-# --- TAB 2: WEBCAM ---
-with tab2:
-    st.header("Chụp ảnh từ Webcam")
-    st.warning("Lưu ý: Trên trình duyệt web, bạn cần nhấn nút 'Take Photo' để chụp ảnh tĩnh và gửi đi phân tích.")
+@st.cache_resource
+def load_resnet():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # Widget Webcam của Streamlit
-    img_file_buffer = st.camera_input("Bắt đầu!")
+    model = models.resnet50(weights=None)
+    num_ftrs = model.fc.in_features
+    model.fc = nn.Sequential(
+        nn.Linear(num_ftrs, 512),
+        nn.ReLU(),
+        nn.Dropout(0.4),
+        nn.Linear(512, len(CLASS_NAMES))
+    )
+    
+    try:
+        state_dict = torch.load(RESNET_PATH, map_location=device)
+        model.load_state_dict(state_dict)
+        model.to(device)
+        model.eval()
+        return model, device
+    except Exception as e:
+        st.error(f"❌ Lỗi load ResNet: {e}")
+        return None, None
 
-    if img_file_buffer is not None:
-        # Xử lý khi có ảnh chụp
-        image = Image.open(img_file_buffer)
+yolo_model = load_yolo()
+resnet_model, device = load_resnet()
+
+# HÀM XỬ LÝ ẢNH CHO RESNET 
+# Biến đổi ảnh mặt cắt ra về chuẩn 224x224
+preprocess = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
+
+st.title("🧠 Hệ thống AI 2 Giai đoạn (YOLOv8 + ResNet50)")
+st.write("Đồ án tốt nghiệp - Sinh viên: Trần Xuân Đức")
+
+tab1, tab2 = st.tabs(["🖼️ Upload Ảnh", "📷 Webcam"])
+
+def process_and_draw(image_pil):
+    img_cv = np.array(image_pil)
+    img_cv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2BGR)
+    
+    results = yolo_model(image_pil, conf=0.15, iou=0.5, imgsz=1280, augment=True, agnostic_nms=True, max_det=20)
+    
+    faces_found = 0
+    
+    for box in results[0].boxes:
+        faces_found += 1
+        x1, y1, x2, y2 = map(int, box.xyxy[0])
         
-        # Dự đoán
-        results = model.predict(image, conf=0.20, iou=0.5, imgsz=1280, agnostic_nms=True, augment=True)
-        res_plotted = results[0].plot()[:, :, ::-1]
+        # Xử lý tọa độ
+        h, w, _ = img_cv.shape
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w, x2), min(h, y2)
         
-        st.image(res_plotted, caption='Kết quả từ Webcam', width="stretch")
+        face_img = image_pil.crop((x1, y1, x2, y2))
+        
+        if resnet_model:
+            # Tiền xử lý
+            input_tensor = preprocess(face_img).unsqueeze(0).to(device)
+            
+            with torch.no_grad():
+                outputs = resnet_model(input_tensor)
+                # Lấy xác suất (Softmax)
+                probs = torch.nn.functional.softmax(outputs, dim=1)
+                conf, pred_idx = torch.max(probs, 1)
+                
+                label_en = CLASS_NAMES[pred_idx.item()]
+                label_vn = EMOTION_MAP.get(label_en, label_en)
+                score = conf.item()
+
+        # Vẽ kết quả
+        color = (0, 255, 0) if label_en in ['happy', 'content'] else (0, 0, 255)
+        
+        cv2.rectangle(img_cv, (x1, y1), (x2, y2), color, 2)
+        
+        text = f"{label_vn} ({score:.0%})"
+
+        pil_color = (color[2], color[1], color[0]) # Đảo ngược BGR -> RGB
+        
+        img_cv = draw_text_vietnamese(img_cv, text, (x1, y1 - 30), pil_color, font_size=30)
+
+    # Convert lại sang RGB để hiển thị lên Web
+    return cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB), faces_found
+
+# Xử lý giao diện 
+with tab1:
+    uploaded_file = st.file_uploader("Chọn ảnh...", type=['jpg', 'png'])
+    if uploaded_file:
+        image = Image.open(uploaded_file).convert('RGB')
+        st.image(image, caption='Ảnh gốc', width="stretch")
+        
+        if st.button('🔍 Phân tích 2-Stage'):
+            with st.spinner('YOLO đang tìm mặt, ResNet đang soi cảm xúc...'):
+                final_img, count = process_and_draw(image)
+                st.success(f"Đã tìm thấy {count} khuôn mặt!")
+                st.image(final_img, caption='Kết quả 2-Stage', width="stretch")
+
+with tab2:
+    img_buffer = st.camera_input("Chụp ảnh")
+    if img_buffer:
+        image = Image.open(img_buffer).convert('RGB')
+        final_img, count = process_and_draw(image)
+        st.image(final_img, caption='Kết quả Webcam', width="stretch")
