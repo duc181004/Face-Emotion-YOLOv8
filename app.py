@@ -76,6 +76,7 @@ preprocess = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
+# Giao diện Streamlit
 st.title("🧠 Hệ thống AI 2 Giai đoạn (YOLOv8 + ResNet50)")
 st.write("Đồ án tốt nghiệp - Sinh viên: Trần Xuân Đức")
 
