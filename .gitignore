@@ -10,3 +10,4 @@ test/
 .vscode/
 .idea/
 runs/
+*.pth
