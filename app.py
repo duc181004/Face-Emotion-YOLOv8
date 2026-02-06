@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 from torchvision import models, transforms
 from PIL import ImageDraw, ImageFont, Image
+from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
 
 def draw_text_vietnamese(img_cv, text, pos, color, font_size=20):
     # Chuyển ảnh OpenCV (Numpy) sang PIL
@@ -28,7 +29,7 @@ def draw_text_vietnamese(img_cv, text, pos, color, font_size=20):
     return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
 YOLO_PATH = 'models/best.pt'
-RESNET_PATH = 'models/resnet50_emotion_finetuned.pth'
+EFFICIENTNET_PATH = 'models/efficientnet_b0_final_best.pth'
 
 CLASS_NAMES = ['anger', 'content', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
 
@@ -43,32 +44,31 @@ def load_yolo():
     return YOLO(YOLO_PATH)
 
 @st.cache_resource
-def load_resnet():
+def load_efficientnet():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    model = models.resnet50(weights=None)
-    num_ftrs = model.fc.in_features
-    model.fc = nn.Sequential(
-        nn.Linear(num_ftrs, 512),
-        nn.ReLU(),
-        nn.Dropout(0.4),
-        nn.Linear(512, len(CLASS_NAMES))
+    model = efficientnet_b0(weights=None)
+    num_ftrs = model.classifier[1].in_features
+    model.classifier = nn.Sequential(
+        nn.Dropout(p=0.5, inplace=True),
+        nn.Linear(num_ftrs, len(CLASS_NAMES))
     )
     
     try:
-        state_dict = torch.load(RESNET_PATH, map_location=device)
+        # 3. Load trọng số
+        state_dict = torch.load(EFFICIENTNET_PATH, map_location=device)
         model.load_state_dict(state_dict)
         model.to(device)
         model.eval()
         return model, device
     except Exception as e:
-        st.error(f"❌ Lỗi load ResNet: {e}")
+        st.error(f"❌ Lỗi load EfficientNet: {e}")
         return None, None
 
 yolo_model = load_yolo()
-resnet_model, device = load_resnet()
+efficientnet_model, device = load_efficientnet()
 
-# HÀM XỬ LÝ ẢNH CHO RESNET 
+# HÀM XỬ LÝ ẢNH CHO EFFICIENTNET 
 # Biến đổi ảnh mặt cắt ra về chuẩn 224x224
 preprocess = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -77,7 +77,7 @@ preprocess = transforms.Compose([
 ])
 
 # Giao diện Streamlit
-st.title("🧠 Hệ thống AI 2 Giai đoạn (YOLOv8 + ResNet50)")
+st.title("🧠 Hệ thống AI 2 Giai đoạn (YOLOv8 + EfficientNet)")
 st.write("Đồ án tốt nghiệp - Sinh viên: Trần Xuân Đức")
 
 tab1, tab2 = st.tabs(["🖼️ Upload Ảnh", "📷 Webcam"])
@@ -101,12 +101,12 @@ def process_and_draw(image_pil):
         
         face_img = image_pil.crop((x1, y1, x2, y2))
         
-        if resnet_model:
+        if efficientnet_model:
             # Tiền xử lý
             input_tensor = preprocess(face_img).unsqueeze(0).to(device)
             
             with torch.no_grad():
-                outputs = resnet_model(input_tensor)
+                outputs = efficientnet_model(input_tensor)
                 # Lấy xác suất (Softmax)
                 probs = torch.nn.functional.softmax(outputs, dim=1)
                 conf, pred_idx = torch.max(probs, 1)
@@ -137,7 +137,7 @@ with tab1:
         st.image(image, caption='Ảnh gốc', width="stretch")
         
         if st.button('🔍 Phân tích 2-Stage'):
-            with st.spinner('YOLO đang tìm mặt, ResNet đang soi cảm xúc...'):
+            with st.spinner('YOLO đang tìm mặt, EfficientNet đang soi cảm xúc...'):
                 final_img, count = process_and_draw(image)
                 st.success(f"Đã tìm thấy {count} khuôn mặt!")
                 st.image(final_img, caption='Kết quả 2-Stage', width="stretch")
