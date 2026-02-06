@@ -1,8 +1,12 @@
+torch
+torchvision
 ultralytics
-opencv-python
 streamlit
-pillow
-matplotlib
-pandas
+opencv-python
+Pillow
 numpy
+matplotlib
 seaborn
+scikit-learn
+pandas
+tqdm
